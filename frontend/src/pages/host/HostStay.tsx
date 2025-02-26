@@ -257,23 +257,54 @@ const HostStay = () => {
 
       // Handle images separately
       if (data.images && data.images.length > 0) {
-        // For existing images that are URLs, pass them as a JSON string
-        const existingImages = data.images.filter(img => img.startsWith('http'));
+        // For existing images that are URLs or uploaded paths, pass them as a JSON string
+        const existingImages = data.images.filter(img => 
+          img.startsWith('http') || img.startsWith('/uploads/')
+        );
         if (existingImages.length > 0) {
           formData.append('existing_images', JSON.stringify(existingImages));
+          console.log('Existing images:', existingImages);
         }
         
-        // For new file uploads, we need to append each file to the FormData
-        const newImageFiles = data.images.filter(img => !img.startsWith('http'));
+        // For new file uploads, append each file to the FormData
+        const newImageFiles = data.images.filter(img => 
+          !img.startsWith('http') && !img.startsWith('/uploads/')
+        );
+        console.log('New images to process:', newImageFiles.length);
         if (newImageFiles.length > 0) {
-          // In a real implementation, we would have the actual File objects here
-          // For now, we just log that we would upload these files
-          console.log('New image files to upload:', newImageFiles);
-          
-          // If we had the File objects, we would do something like:
-          // newImageFiles.forEach((file, index) => {
-          //   formData.append(`images[${index}]`, file);
-          // });
+          newImageFiles.forEach((file: File | string, index) => {
+            // Check if the file is already a File object
+            if (typeof File !== 'undefined' && file instanceof File) {
+              formData.append('images', file);
+              console.log('Appending File object:', file.name);
+            } 
+            // Check if it's a base64 string
+            else if (typeof file === 'string' && file.includes('base64')) {
+              try {
+                const base64Data = file.split(',')[1];
+                const mimeType = file.split(',')[0].split(':')[1].split(';')[0];
+                const byteCharacters = atob(base64Data);
+                const byteArrays = [];
+                
+                for (let i = 0; i < byteCharacters.length; i++) {
+                  byteArrays.push(byteCharacters.charCodeAt(i));
+                }
+                
+                const byteArray = new Uint8Array(byteArrays);
+                const blob = new Blob([byteArray], { type: mimeType });
+                const fileObject = new File([blob], `image_${index}.jpg`, { type: mimeType });
+                
+                formData.append('images', fileObject);
+                console.log('Appended converted base64 to File:', fileObject.name, fileObject.type, fileObject.size);
+              } catch (e) {
+                console.error('Error processing base64 image:', e);
+                // Skip this file if there's an error processing it
+                return;
+              }
+            } else {
+              console.warn('Skipping invalid image data:', typeof file);
+            }
+          });
         }
       }
 
@@ -286,7 +317,8 @@ const HostStay = () => {
       const response = await fetch(url, {
         method: id ? 'PUT' : 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          // Remove any Content-Type header to let the browser set it for FormData
         },
         body: formData
       });

@@ -170,10 +170,8 @@ const Stays = () => {
             ...stay.host,
             image: getFullImageUrl(stay.host.image || '/uploads/default-avatar.png')
           },
-          // Add mock property type if not provided
           details: {
             ...stay.details,
-            propertyType: stay.details.propertyType || propertyTypes[Math.floor(Math.random() * propertyTypes.length)].id,
             // Add mock availability dates if not provided
             availability: stay.details.availability || generateMockAvailability()
           }
@@ -336,6 +334,20 @@ const Stays = () => {
 
   // Debug: Log the filtered stays count
   console.log('Filtered stays count:', filteredStays.length);
+
+  // Apply client-side sorting as a fallback
+  const sortedStays = [...filteredStays].sort((a, b) => {
+    switch (sortBy) {
+      case 'price_asc':
+        return a.price_per_night - b.price_per_night;
+      case 'price_desc':
+        return b.price_per_night - a.price_per_night;
+      case 'rating_desc':
+        return b.host.rating - a.host.rating;
+      default:
+        return 0;
+    }
+  });
 
   const toggleFavorite = (e: React.MouseEvent, stayId: number) => {
     e.stopPropagation();
@@ -618,7 +630,7 @@ const Stays = () => {
                   ]
                 }}
               >
-                {filteredStays.map((stay) => (
+                {sortedStays.map((stay) => (
                   <MarkerF
                     key={stay.id}
                     position={{ lat: 33.749 + Math.random() * 0.05, lng: -84.388 + Math.random() * 0.05 }}
@@ -637,9 +649,9 @@ const Stays = () => {
                 <div className="flex justify-center items-center h-64">
                   <LoadingSpinner className="h-8 w-8" />
                 </div>
-              ) : filteredStays.length > 0 ? (
+              ) : sortedStays.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredStays.map((stay) => (
+                  {sortedStays.map((stay) => (
                     <Card 
                       key={stay.id}
                       className="group overflow-hidden hover:shadow-lg transition-all duration-300"

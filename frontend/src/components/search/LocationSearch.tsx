@@ -24,7 +24,11 @@ interface Listing {
   longitude: number;
 }
 
-const LocationSearch = () => {
+interface LocationSearchProps {
+  onLocationSelect?: () => void;
+}
+
+const LocationSearch = ({ onLocationSelect }: LocationSearchProps) => {
   const [searchInput, setSearchInput] = useState('');
   const [suggestions, setSuggestions] = useState<Location[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
@@ -152,6 +156,7 @@ const LocationSearch = () => {
 
     navigate(`/${type}?${searchParams.toString()}`);
     console.log(`Navigating to /${type} with params:`, searchParams.toString());
+    onLocationSelect?.();
   };
 
   const handleUseCurrentLocation = () => {

@@ -803,19 +803,34 @@ def create_stay(current_user):
         cursor.execute(query, values)
         stay_id = cursor.lastrowid
 
+        # Handle amenities
+        if 'amenities' in request.form:
+            try:
+                amenities = json.loads(request.form.get('amenities'))
+                for amenity_id in amenities:
+                    cursor.execute(
+                        'INSERT INTO stay_amenities (stay_id, amenity_id) VALUES (%s, %s)',
+                        (stay_id, amenity_id)
+                    )
+                print(f"Added {len(amenities)} amenities for stay {stay_id}")
+            except Exception as e:
+                print("Error processing amenities:", str(e))
+
         # Handle images
         if 'images' in request.files:
             images = request.files.getlist('images')
             for i, image in enumerate(images):
                 if image and allowed_file(image.filename):
                     filename = secure_filename(f"{stay_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.jpg")
-                    image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                    image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    image.save(image_path)
                     cursor.execute('''
                         INSERT INTO stay_images 
                         (stay_id, image_path, display_order, created_at) 
                         VALUES (%s, %s, %s, NOW())
                     ''', (stay_id, filename, i))
-                    
+                    print(f"Added image {filename} for stay {stay_id}")
+        
         # Handle existing images sent as JSON
         if 'existing_images' in request.form:
             try:
@@ -864,7 +879,7 @@ def get_host_stays(current_user):
             SELECT 
                 s.*,
                 GROUP_CONCAT(
-                    CONCAT(si.image_path, ':', COALESCE(si.display_order, 0))
+                    DISTINCT CONCAT(si.image_path, ':', COALESCE(si.display_order, 0))
                     ORDER BY si.display_order ASC
                 ) as image_data,
                 GROUP_CONCAT(DISTINCT sa.amenity_id) as amenities
@@ -884,23 +899,45 @@ def get_host_stays(current_user):
             stay['updated_at'] = stay['updated_at'].isoformat()
             stay['price_per_night'] = float(stay['price_per_night'])
             
-            # Process image data
+            # Format image URL
             if stay['image_data']:
-                image_list = []
-                for img_data in stay['image_data'].split(','):
-                    if ':' in img_data:
-                        path, order = img_data.split(':')
-                        image_list.append({
-                            'url': get_full_url(f"/uploads/{path.strip()}"),
-                            'order': int(order)
-                        })
-                stay['images'] = sorted(image_list, key=lambda x: x['order'])
+                try:
+                    image_list = []
+                    for img_data in stay['image_data'].split(','):
+                        if ':' in img_data:
+                            path, order = img_data.split(':')
+                            image_list.append({
+                                'url': get_full_url(f"/uploads/{path.strip()}"),
+                                'order': int(order)
+                            })
+                    stay['images'] = sorted(image_list, key=lambda x: x['order'])
+                    print(f"Processed {len(image_list)} images for stay {stay['id']}")
+                except Exception as e:
+                    print(f"Error processing images for stay {stay['id']}: {str(e)}")
+                    stay['images'] = []
             else:
                 stay['images'] = []
                 
             # Process amenities
             if stay['amenities']:
-                stay['amenities'] = [int(x) for x in stay['amenities'].split(',')]
+                try:
+                    amenity_ids = stay['amenities'].split(',')
+                    cursor.execute('''
+                        SELECT id, name, category FROM amenities 
+                        WHERE id IN ({})
+                    '''.format(','.join(['%s'] * len(amenity_ids))), amenity_ids)
+                    
+                    amenities_data = cursor.fetchall()
+                    stay['amenities'] = [{
+                        'id': amenity['id'],
+                        'name': amenity['name'],
+                        'category': amenity['category']
+                    } for amenity in amenities_data]
+                    
+                    print(f"Found {len(amenities_data)} amenities for stay {stay['id']}")
+                except Exception as e:
+                    print(f"Error processing amenities for stay {stay['id']}: {str(e)}")
+                    stay['amenities'] = []
             else:
                 stay['amenities'] = []
         
@@ -985,13 +1022,16 @@ def update_stay(current_user, id):
 
         # Update amenities
         if 'amenities' in data:
-            amenities = json.loads(data['amenities'])
-            cursor.execute('DELETE FROM stay_amenities WHERE stay_id = %s', (id,))
-            for amenity_id in amenities:
-                cursor.execute(
-                    'INSERT INTO stay_amenities (stay_id, amenity_id) VALUES (%s, %s)',
-                    (id, amenity_id)
-                )
+            try:
+                amenities = json.loads(data['amenities'])
+                cursor.execute('DELETE FROM stay_amenities WHERE stay_id = %s', (id,))
+                for amenity_id in amenities:
+                    cursor.execute(
+                        'INSERT INTO stay_amenities (stay_id, amenity_id) VALUES (%s, %s)',
+                        (id, amenity_id)
+                    )
+            except Exception as e:
+                print("Error processing amenities:", str(e))
 
         # Update availability
         if 'availability' in data:
@@ -1014,7 +1054,7 @@ def update_stay(current_user, id):
         # Update images if provided in files
         if 'images' in request.files:
             images = request.files.getlist('images')
-            if images[0].filename: # Only proceed if there's an actual file
+            if images and images[0].filename: # Only proceed if there's an actual file
                 # Get current images to keep track of display order
                 cursor.execute('SELECT MAX(display_order) as max_order FROM stay_images WHERE stay_id = %s', (id,))
                 result = cursor.fetchone()
@@ -1023,7 +1063,8 @@ def update_stay(current_user, id):
                 for i, image in enumerate(images):
                     if image and allowed_file(image.filename):
                         filename = secure_filename(f"{id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.jpg")
-                        image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                        image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                        image.save(image_path)
                         cursor.execute('''
                             INSERT INTO stay_images 
                             (stay_id, image_path, display_order, created_at) 
@@ -1031,9 +1072,9 @@ def update_stay(current_user, id):
                         ''', (id, filename, next_order + i))
         
         # Handle existing images sent as JSON - for keeping track of which images to keep/delete
-        if 'existing_images' in data:
+        if 'existing_images' in request.form:
             try:
-                existing_images = json.loads(data['existing_images'])
+                existing_images = json.loads(request.form.get('existing_images'))
                 
                 # Get all current image paths
                 cursor.execute('SELECT id, image_path FROM stay_images WHERE stay_id = %s', (id,))
@@ -1042,13 +1083,18 @@ def update_stay(current_user, id):
                 # Create a map of current image paths to IDs
                 image_map = {}
                 for img in current_images:
-                    full_path = get_full_url(f"/uploads/{img['image_path']}")
-                    image_map[full_path] = img['id']
+                    # Handle both full URLs and relative paths
+                    image_path = img['image_path']
+                    if image_path.startswith('/uploads/'):
+                        image_map[image_path] = img['id']
+                    else:
+                        image_map[f"/uploads/{image_path}"] = img['id']
                 
                 # Delete images that are no longer in the existing_images list
-                for full_path, img_id in image_map.items():
-                    if full_path not in existing_images:
+                for path, img_id in image_map.items():
+                    if path not in existing_images:
                         cursor.execute('DELETE FROM stay_images WHERE id = %s', (img_id,))
+                        print(f"Deleted image {path} with ID {img_id}")
                 
             except Exception as e:
                 print("Error processing existing images:", str(e))
@@ -1595,8 +1641,20 @@ def get_published_stays():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Get all published stays with their first image and host info
-        cursor.execute('''
+        # Get sort parameter
+        sort = request.args.get('sort', 'created_at_desc')
+        
+        # Build the ORDER BY clause based on sort parameter
+        order_by = "s.created_at DESC"  # default sorting
+        if sort == 'price_asc':
+            order_by = "s.price_per_night ASC"
+        elif sort == 'price_desc':
+            order_by = "s.price_per_night DESC"
+        elif sort == 'rating_desc':
+            order_by = "s.created_at DESC"  # fallback to created_at since we don't have ratings yet
+        
+        # Build the base query
+        query = '''
             SELECT 
                 s.*,
                 u.name as host_name,
@@ -1607,9 +1665,20 @@ def get_published_stays():
             LEFT JOIN stay_images si ON s.id = si.stay_id
             LEFT JOIN stay_amenities sa ON s.id = sa.stay_id
             WHERE s.status = 'published'
-            GROUP BY s.id
-            ORDER BY s.created_at DESC
-        ''')
+        '''
+        params = []
+
+        # Add zipcode filter if provided
+        zipcode = request.args.get('zipcode')
+        if zipcode:
+            query += " AND s.zipcode = %s"
+            params.append(zipcode)
+
+        # Add group by and order by
+        query += f" GROUP BY s.id ORDER BY {order_by}"
+        
+        # Execute the query with parameters
+        cursor.execute(query, params)
         
         stays = cursor.fetchall()
         
@@ -1625,12 +1694,13 @@ def get_published_stays():
             else:
                 stay['image'] = None
                 
-            # Add host details
+            # Add host details with mock rating data
+            # In the future, this should come from a proper ratings table
             stay['host'] = {
                 'name': stay['host_name'],
                 'image': '/images/mountain.jpg',
-                'rating': 4.5,
-                'reviews': 10
+                'rating': 4.5,  # Mock rating
+                'reviews': 10   # Mock review count
             }
             
             # Add details
@@ -1639,7 +1709,8 @@ def get_published_stays():
                 'bathrooms': stay['bedrooms'],  # Assuming 1 bathroom per bedroom
                 'maxGuests': stay['max_guests'],
                 'amenities': stay['amenities'].split(',') if stay['amenities'] else [],
-                'location': stay['location_name']
+                'location': stay['location_name'],
+                'propertyType': stay['property_type']  # Add property_type to details
             }
             
             # Clean up response
@@ -1647,6 +1718,23 @@ def get_published_stays():
             del stay['image_path']
             del stay['amenities']
             
+            # Process amenities
+            if stay['details']['amenities']:
+                try:
+                    amenity_ids = stay['details']['amenities']
+                    cursor.execute('''
+                        SELECT name FROM amenities 
+                        WHERE id IN ({})
+                    '''.format(','.join(['%s'] * len(amenity_ids))), amenity_ids)
+                    amenity_names = [row['name'] for row in cursor.fetchall()]
+                    stay['details']['amenities'] = amenity_names
+                    print(f"Found {len(amenity_names)} amenities for stay {stay['id']}")
+                except Exception as e:
+                    print(f"Error processing amenities for stay {stay['id']}: {str(e)}")
+                    stay['details']['amenities'] = []
+            else:
+                stay['details']['amenities'] = []
+        
         return jsonify(stays)
         
     except Exception as e:
@@ -1829,18 +1917,10 @@ def get_host_stay(current_user, id):
                     DISTINCT CONCAT(si.image_path, ':', COALESCE(si.display_order, 0))
                     ORDER BY si.display_order ASC
                 ) as image_data,
-                GROUP_CONCAT(DISTINCT sa.amenity_id) as amenities,
-                GROUP_CONCAT(
-                    DISTINCT CONCAT(
-                        sav.date, ' ',
-                        COALESCE(sav.price_override, s.price_per_night), ' ',
-                        sav.is_available
-                    )
-                ) as availability_data
+                GROUP_CONCAT(DISTINCT sa.amenity_id) as amenities
             FROM stays s
             LEFT JOIN stay_images si ON s.id = si.stay_id
             LEFT JOIN stay_amenities sa ON s.id = sa.stay_id
-            LEFT JOIN stay_availability sav ON s.id = sav.stay_id
             WHERE s.id = %s AND s.host_id = %s
             GROUP BY s.id
         ''', (id, current_user['id']))
@@ -1881,13 +1961,18 @@ def get_host_stay(current_user, id):
         # Process amenities
         amenities = []
         if stay['amenities']:
-            cursor.execute('''
-                SELECT a.name, a.category
-                FROM amenities a
-                JOIN stay_amenities sa ON a.id = sa.amenity_id
-                WHERE sa.stay_id = %s
-            ''', (id,))
-            amenities = cursor.fetchall()
+            try:
+                amenity_ids = stay['amenities'].split(',')
+                cursor.execute('''
+                    SELECT name, category
+                    FROM amenities a
+                    WHERE a.id IN ({})
+                '''.format(','.join(['%s'] * len(amenity_ids))), amenity_ids)
+                amenities = cursor.fetchall()
+                print(f"Found {len(amenities)} amenities for stay {id}")
+            except Exception as e:
+                print(f"Error fetching amenities for stay {id}: {str(e)}")
+                amenities = []
         
         # Add host details
         stay['host'] = {
@@ -2020,11 +2105,11 @@ def upload_food_experience_images(current_user, experience_id):
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 
-                cursor.execute("""
+                cursor.execute('''
                     INSERT INTO food_experience_images 
                     (experience_id, image_path) 
                     VALUES (%s, %s)
-                """, (experience_id, new_filename))
+                ''', (experience_id, new_filename))
                 
                 conn.commit()
                 uploaded_images.append(new_filename)
@@ -2110,13 +2195,18 @@ def get_stay_details(id):
         # Process amenities
         amenities = []
         if stay['amenities']:
-            cursor.execute('''
-                SELECT a.name, a.category
-                FROM amenities a
-                JOIN stay_amenities sa ON a.id = sa.amenity_id
-                WHERE sa.stay_id = %s
-            ''', (id,))
-            amenities = cursor.fetchall()
+            try:
+                amenity_ids = stay['amenities'].split(',')
+                cursor.execute('''
+                    SELECT name, category
+                    FROM amenities a
+                    WHERE a.id IN ({})
+                '''.format(','.join(['%s'] * len(amenity_ids))), amenity_ids)
+                amenities = cursor.fetchall()
+                print(f"Found {len(amenities)} amenities for stay {id}")
+            except Exception as e:
+                print(f"Error fetching amenities for stay {id}: {str(e)}")
+                amenities = []
         
         # Add host details
         stay['host'] = {
