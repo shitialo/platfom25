@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import {
   Form,
   FormControl,
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -45,19 +46,12 @@ const Signup = () => {
     },
   });
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
 
-    const formData = new FormData(e.currentTarget);
-    const firstName = formData.get("firstName") as string;
-    const lastName = formData.get("lastName") as string;
-    const name = `${firstName} ${lastName}`.trim();
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
-
     try {
-      await register(name, email, password);
+      const name = `${values.firstName} ${values.lastName}`.trim();
+      await register(name, values.email, values.password);
       toast({
         title: "Welcome!",
         description: "Your account has been created successfully.",
@@ -101,15 +95,7 @@ const Signup = () => {
         <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
           <div className="space-y-6">
             <div className="space-y-4">
-              <Button 
-                variant="outline" 
-                type="button" 
-                className="w-full" 
-                onClick={() => console.log("Google signup")}
-              >
-                <Mail className="w-4 h-4 mr-2" />
-                Continue with Email
-              </Button>
+              <GoogleSignInButton />
             </div>
 
             <div className="relative">
@@ -117,14 +103,14 @@ const Signup = () => {
                 <span className="w-full border-t" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-muted-foreground">
-                  Or continue with
+                <span className="px-2 bg-gray-100 text-muted-foreground">
+                  Or sign up with email
                 </span>
               </div>
             </div>
 
             <Form {...form}>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}

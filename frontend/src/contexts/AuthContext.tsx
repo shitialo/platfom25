@@ -1,118 +1,185 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '@/api/auth';
-import { authService } from '@/services/auth';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+
+interface AuthUser {
+  email: string;
+  name: string;
+  picture?: string;
+  sub?: string;
+  is_host?: boolean;
+  provider: 'google' | 'email';
+}
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
+  isAuthenticated: boolean;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  setUser: (user: AuthUser | null) => void;
   logout: () => void;
-  checkAuth: () => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
+  getAuthHeader: () => { Authorization: string } | undefined;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const updateUser = (newUser: User | null) => {
-    console.log('Updating user in AuthContext:', newUser);
-    setUser(newUser);
+  const getAuthHeader = () => {
+    const token = localStorage.getItem('authToken') || localStorage.getItem('googleToken');
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
   };
 
   useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    const token = localStorage.getItem('token');
-    console.log('Checking auth with token:', token?.substring(0, 10) + '...');
+    // Check for stored user info on mount
+    const storedUser = localStorage.getItem('user');
+    const token = localStorage.getItem('authToken') || localStorage.getItem('googleToken');
     
-    if (token) {
+    if (storedUser && token) {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Auth check response:', data);
-          data.is_host = Boolean(data.is_host);
-          console.log('User data after boolean conversion:', data);
-          updateUser(data);
-        } else {
-          console.log('Auth check failed with status:', response.status);
-          localStorage.removeItem('token');
-          updateUser(null);
-        }
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        setIsAuthenticated(true);
       } catch (error) {
-        console.error('Auth check failed:', error);
-        localStorage.removeItem('token');
-        updateUser(null);
+        console.error('Error parsing stored user:', error);
+        localStorage.removeItem('user');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('googleToken');
       }
-    } else {
-      updateUser(null);
     }
     setLoading(false);
+  }, []);
+
+  const setUserAndPersist = (newUser: AuthUser | null) => {
+    setUser(newUser);
+    setIsAuthenticated(!!newUser);
+    if (newUser) {
+      localStorage.setItem('user', JSON.stringify(newUser));
+    } else {
+      localStorage.removeItem('user');
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('googleToken');
+    }
   };
 
-  const login = async (email: string, password: string) => {
+  const loginWithEmail = async (email: string, password: string) => {
     try {
-      const response = await authService.login({ email, password });
-      console.log('Login response:', response);
-      if (response.user) {
-        response.user.is_host = Boolean(response.user.is_host);
-        console.log('User data after login:', response.user);
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to login');
       }
-      updateUser(response.user);
-      await checkAuth();
+
+      const data = await response.json();
+      
+      // Store the JWT token
+      localStorage.setItem('authToken', data.token);
+
+      // Create user object
+      const user: AuthUser = {
+        email: data.user.email,
+        name: data.user.name,
+        is_host: data.user.is_host,
+        provider: 'email'
+      };
+
+      setUserAndPersist(user);
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('Login error:', error);
+      throw error;
     }
   };
 
   const register = async (name: string, email: string, password: string) => {
-    if (!name || !email || !password) {
-      throw new Error('All fields are required');
-    }
-    
     try {
-      const { user } = await authService.register({ name, email, password });
-      if (user) {
-        user.is_host = Boolean(user.is_host);
-        console.log('User data after registration:', user);
+      const response = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to register');
       }
-      updateUser(user);
-      await checkAuth();
+
+      const data = await response.json();
+      
+      // Store the JWT token
+      localStorage.setItem('authToken', data.token);
+
+      // Create user object
+      const user: AuthUser = {
+        email: data.user.email,
+        name: data.user.name,
+        is_host: data.user.is_host,
+        provider: 'email'
+      };
+
+      setUserAndPersist(user);
     } catch (error) {
-      console.error('Registration failed:', error);
+      console.error('Registration error:', error);
+      throw error;
     }
   };
 
-  const logout = async () => {
-    setLoading(true);
+  const logout = () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('googleToken');
+    localStorage.removeItem('user');
+    setUser(null);
+    setIsAuthenticated(false);
+  };
+
+  const refreshUser = async () => {
     try {
-      await authService.logout();
+      const headers = getAuthHeader();
+      if (!headers) return;
+
+      const response = await fetch(`${API_URL}/auth/me`, {
+        headers
+      });
+
+      if (!response.ok) throw new Error('Failed to refresh user data');
+
+      const userData = await response.json();
+      setUserAndPersist({
+        email: userData.email,
+        name: userData.name,
+        picture: userData.picture,
+        is_host: userData.is_host,
+        provider: userData.provider || 'email'
+      });
     } catch (error) {
-      console.error('Logout failed:', error);
-    } finally {
-      localStorage.removeItem('token');
-      updateUser(null);
-      setLoading(false);
+      console.error('Error refreshing user data:', error);
     }
   };
 
   return (
     <AuthContext.Provider value={{ 
       user, 
+      isAuthenticated, 
       loading, 
-      login, 
-      register, 
+      setUser: setUserAndPersist,
+      loginWithEmail,
+      register,
+      getAuthHeader, 
       logout,
-      checkAuth
+      refreshUser 
     }}>
       {children}
     </AuthContext.Provider>

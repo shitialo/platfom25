@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import {
   Form,
   FormControl,
@@ -13,7 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -24,7 +25,7 @@ const formSchema = z.object({
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { loginWithEmail } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
@@ -45,7 +46,7 @@ const Login = () => {
     const password = formData.get("password") as string;
 
     try {
-      await login(email, password);
+      await loginWithEmail(email, password);
       toast({
         title: "Welcome back!",
         description: "You have successfully logged in.",
@@ -69,7 +70,6 @@ const Login = () => {
           <Link to="/" className="flex items-center justify-center mb-8">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-terracotta-600 flex items-center justify-center text-white font-bold text-xl">
               P25
-
             </div>
           </Link>
           <h2 className="text-center text-3xl font-bold tracking-tight text-gray-900">
@@ -89,15 +89,7 @@ const Login = () => {
         <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
           <div className="space-y-6">
             <div className="space-y-4">
-              <Button 
-                variant="outline" 
-                type="button" 
-                className="w-full" 
-                onClick={() => console.log("Google login")}
-              >
-                <Mail className="w-4 h-4 mr-2" />
-                Continue with Email
-              </Button>
+              <GoogleSignInButton />
             </div>
 
             <div className="relative">
@@ -105,8 +97,8 @@ const Login = () => {
                 <span className="w-full border-t" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-muted-foreground">
-                  Or continue with
+                <span className="px-2 bg-gray-100 text-muted-foreground">
+                  Or continue with email
                 </span>
               </div>
             </div>
@@ -170,8 +162,6 @@ const Login = () => {
           </div>
         </div>
       </div>
-
-      
     </div>
   );
 };

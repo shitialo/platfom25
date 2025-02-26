@@ -75,7 +75,7 @@ const HostStay = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { checkAuth } = useAuth();
+  const { getAuthHeader, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
@@ -125,10 +125,14 @@ const HostStay = () => {
     if (id) {
       const fetchStay = async () => {
         try {
-          const token = localStorage.getItem('token');
+          const headers = getAuthHeader();
+          if (!headers) {
+            throw new Error('Not authenticated');
+          }
+
           const response = await fetch(`${import.meta.env.VITE_API_URL}/host/stays/${id}`, {
             headers: {
-              'Authorization': `Bearer ${token}`
+              ...headers
             }
           });
 
@@ -188,7 +192,7 @@ const HostStay = () => {
 
       fetchStay();
     }
-  }, [id, form]);
+  }, [id, form, getAuthHeader]);
 
   useEffect(() => {
     const fetchAmenities = async () => {
@@ -230,7 +234,11 @@ const HostStay = () => {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const headers = getAuthHeader();
+      if (!headers) {
+        throw new Error('Not authenticated');
+      }
+
       const formData = new FormData();
       
       const dataToSend = {
@@ -317,8 +325,7 @@ const HostStay = () => {
       const response = await fetch(url, {
         method: id ? 'PUT' : 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          // Remove any Content-Type header to let the browser set it for FormData
+          ...headers
         },
         body: formData
       });
@@ -331,7 +338,8 @@ const HostStay = () => {
       const responseData = await response.json();
       console.log('Response data:', responseData);
 
-      await checkAuth();
+      // Refresh user data to update host status
+      await refreshUser();
 
       toast({
         title: "Success",

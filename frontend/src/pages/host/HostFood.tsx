@@ -41,6 +41,16 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+interface Location {
+  address: string;
+  zipcode: string;
+  city: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+  displayLocation?: string;
+}
+
 const HostFood = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -48,14 +58,15 @@ const HostFood = () => {
   const isEditing = Boolean(id);
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<string[]>([]);
-  const { checkAuth } = useAuth();
-  const [location, setLocation] = useState({
+  const { getAuthHeader, refreshUser } = useAuth();
+  const [location, setLocation] = useState<Location>({
     address: '',
     zipcode: '',
     city: '',
     state: '',
     latitude: 0,
-    longitude: 0
+    longitude: 0,
+    displayLocation: ''
   });
 
   const form = useForm<FormData>({
@@ -88,10 +99,14 @@ const HostFood = () => {
     if (id) {
       const fetchExperience = async () => {
         try {
-          const token = localStorage.getItem('token');
+          const headers = getAuthHeader();
+          if (!headers) {
+            throw new Error('Not authenticated');
+          }
+
           const response = await fetch(`${import.meta.env.VITE_API_URL}/host/food-experiences/${id}`, {
             headers: {
-              'Authorization': `Bearer ${token}`
+              ...headers
             }
           });
 
@@ -142,7 +157,7 @@ const HostFood = () => {
 
       fetchExperience();
     }
-  }, [id, form]);
+  }, [id, form, getAuthHeader]);
 
   useEffect(() => {
     if (location.address) {
@@ -159,8 +174,6 @@ const HostFood = () => {
     console.log('Current location:', location);
   }, [location]);
 
- 
-
   const onSubmit = async (data: FormData) => {
     if (!location.address) {
       toast({
@@ -171,9 +184,13 @@ const HostFood = () => {
       return;
     }
 
-      setLoading(true);
+    setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const headers = getAuthHeader();
+      if (!headers) {
+        throw new Error('Not authenticated');
+      }
+
       const formData = new FormData();
       const dataToSend = {
         ...data,
@@ -187,37 +204,31 @@ const HostFood = () => {
         location_name: location.displayLocation || `${location.city}, ${location.state}`
       };
 
-            // Debug logs
-            console.log('Form Data:', data);
-            console.log('Location Data:', location);
-            console.log('Data to Send:', dataToSend);
-            
-            Object.entries(dataToSend).forEach(([key, value]) => {
-              formData.append(key, value?.toString() || '');
-              // Debug log for each field
-              console.log(`Adding to FormData - ${key}:`, value);
+      // Debug logs
+      console.log('Form Data:', data);
+      console.log('Location Data:', location);
+      console.log('Data to Send:', dataToSend);
       
-
-      
+      Object.entries(dataToSend).forEach(([key, value]) => {
+        formData.append(key, value?.toString() || '');
+        // Debug log for each field
+        console.log(`Adding to FormData - ${key}:`, value);
       });
 
-    
       const url = id 
-
         ? `${import.meta.env.VITE_API_URL}/host/food-experiences/${id}`
         : `${import.meta.env.VITE_API_URL}/host/food-experiences`;
 
-              // Log the final FormData
+      // Log the final FormData
       console.log('Final FormData entries:');
       for (let pair of formData.entries()) {
         console.log(pair[0], pair[1]);
       }
 
-      
       const response = await fetch(url, {
         method: id ? 'PUT' : 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
+          ...headers
         },
         body: formData
       });
@@ -231,23 +242,20 @@ const HostFood = () => {
       const responseData = await response.json();
       console.log('Response:', responseData);
 
-      await checkAuth();
+      // Refresh user data to update host status
+      await refreshUser();
 
       toast({
         title: "Success",
         description: `Food experience ${id ? 'updated' : 'created'} successfully`,
-
       });
 
-    
       navigate('/host/dashboard');
-
     } catch (error) {
       console.error('Error:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : 'Failed to save experience',
-
         variant: "destructive",
       });
     } finally {

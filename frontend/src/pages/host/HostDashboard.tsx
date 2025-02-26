@@ -38,7 +38,7 @@ const HostDashboard = () => {
     const fetchListings = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('authToken');
         
         const [foodRes, staysRes] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL}/host/food-experiences`, {

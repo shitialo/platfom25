@@ -13,6 +13,8 @@ from PIL import Image
 from io import BytesIO
 from decimal import Decimal
 from flask.json import JSONEncoder
+import requests
+import uuid
 
 # Load environment variables
 load_dotenv()
@@ -749,10 +751,6 @@ def reorder_food_experience_images(current_user, id):
 @token_required
 def create_stay(current_user):
     try:
-        # Check if user is a host
-        if not current_user['is_host']:
-            return jsonify({'error': 'Only hosts can create stays'}), 403
-        
         # Get form data
         title = request.form.get('title')
         description = request.form.get('description')
@@ -780,6 +778,11 @@ def create_stay(current_user):
         # Connect to database
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # If user is not a host, make them a host
+        if not current_user['is_host']:
+            cursor.execute('UPDATE users SET is_host = TRUE WHERE id = %s', (current_user['id'],))
+            current_user['is_host'] = True
         
         # Insert stay
         query = '''
@@ -2321,6 +2324,91 @@ def toggle_stay_featured(current_user, id):
             cursor.close()
         if 'conn' in locals():
             conn.close()
+
+@app.route('/api/auth/google/verify', methods=['POST'])
+def verify_google_token():
+    from datetime import datetime, timedelta
+    data = request.get_json()
+    access_token = data.get('access_token')
+    
+    if not access_token:
+        return jsonify({'message': 'No token provided'}), 400
+
+    try:
+        # Verify the token with Google
+        userinfo_response = requests.get(
+            'https://www.googleapis.com/oauth2/v3/userinfo',
+            headers={'Authorization': f'Bearer {access_token}'}
+        )
+        
+        if not userinfo_response.ok:
+            return jsonify({'message': 'Failed to verify Google token'}), 401
+
+        google_data = userinfo_response.json()
+
+        # Check if user exists in our database
+        conn = get_db_connection()
+        cur = conn.cursor(dictionary=True)  # Use dictionary cursor for easier data handling
+        
+        cur.execute(
+            "SELECT id, name, email, is_host FROM users WHERE email = %s",
+            (google_data['email'],)
+        )
+        user = cur.fetchone()
+
+        if user is None:
+            # Create new user with a special password for Google users
+            placeholder_password = str(uuid.uuid4())
+            current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            
+            cur.execute(
+                """
+                INSERT INTO users (name, email, is_host, password, created_at)
+                VALUES (%s, %s, false, %s, %s)
+                """,
+                (google_data['name'], google_data['email'], placeholder_password, current_time)
+            )
+            conn.commit()
+            
+            # Get the newly created user
+            cur.execute(
+                "SELECT id, name, email, is_host FROM users WHERE email = %s",
+                (google_data['email'],)
+            )
+            user = cur.fetchone()
+        else:
+            # Update existing user to be a host if they're trying to create a listing
+            cur.execute('UPDATE users SET is_host = TRUE WHERE id = %s', (user['id'],))
+            conn.commit()
+            user['is_host'] = True
+        
+        # Create JWT token
+        token = jwt.encode(
+            {
+                'user_id': user['id'],
+                'email': user['email'],
+                'exp': datetime.utcnow() + timedelta(days=1)
+            },
+            app.config['SECRET_KEY']
+        )
+
+        return jsonify({
+            'token': token,
+            'user': {
+                'id': user['id'],
+                'name': user['name'],
+                'email': user['email'],
+                'is_host': bool(user['is_host']),
+                'picture': google_data.get('picture')
+            }
+        })
+
+    except Exception as e:
+        print('Error in Google verification:', str(e))
+        return jsonify({'message': 'Failed to verify token'}), 401
+    finally:
+        cur.close()
+        conn.close()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
