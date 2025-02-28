@@ -37,7 +37,7 @@ export const AmenitiesSelect = ({ selectedAmenities = [], onAmenitiesChange }: A
   useEffect(() => {
     const fetchAmenities = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/amenities?type=stay`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/host/amenities?type=stay`);
         if (!response.ok) throw new Error('Failed to fetch amenities');
         const data = await response.json();
         const validData = Object.entries(data || {}).reduce((acc, [key, value]) => {

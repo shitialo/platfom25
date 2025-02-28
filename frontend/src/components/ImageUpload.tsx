@@ -5,6 +5,7 @@ import { useDropzone } from "react-dropzone";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import imageCompression from "browser-image-compression";
 import { toast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ImageUploadProps {
   value: string[];
@@ -22,6 +23,7 @@ const ImageUpload = ({
   title
 }: ImageUploadProps) => {
   const [loading, setLoading] = useState(false);
+  const { getAuthHeader } = useAuth();
 
   const compressImage = async (file: File) => {
     const options = {
@@ -50,11 +52,15 @@ const ImageUpload = ({
       formData.append('image', newFile);
       formData.append('title', title || 'upload');
 
-      const token = localStorage.getItem('token');
+      const headers = getAuthHeader();
+      if (!headers) {
+        throw new Error('Not authenticated');
+      }
+
       const response = await fetch(`${import.meta.env.VITE_API_URL}/upload`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...headers
         },
         body: formData,
       });
@@ -70,7 +76,7 @@ const ImageUpload = ({
       console.error('Upload error:', error);
       toast({
         title: "Error",
-        description: "Failed to upload image",
+        description: error instanceof Error ? error.message : "Failed to upload image",
         variant: "destructive",
       });
       return null;
