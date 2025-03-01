@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=/api
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - MYSQL_HOST=db
+      - MYSQL_USER=${MYSQL_USER:-platform2025}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-webber1367}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-platform2025}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-your-secret-key}
+      - BASE_URL=${BASE_URL:-http://localhost:3000}
+      - FLASK_ENV=production
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-webber1367}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-platform2025}
+      - MYSQL_USER=${MYSQL_USER:-platform2025}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-webber1367}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  uploads:

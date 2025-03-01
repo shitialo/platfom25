@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 20 14.3% 4.1%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 14.3% 4.1%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 14.3% 4.1%;
+    --primary: 24 9.8% 10%;
+    --primary-foreground: 60 9.1% 97.8%;
+    --secondary: 60 4.8% 95.9%;
+    --secondary-foreground: 24 9.8% 10%;
+    --muted: 60 4.8% 95.9%;
+    --muted-foreground: 25 5.3% 44.7%;
+    --accent: 60 4.8% 95.9%;
+    --accent-foreground: 24 9.8% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 60 9.1% 97.8%;
+    --border: 20 5.9% 90%;
+    --input: 20 5.9% 90%;
+    --ring: 24 5.4% 63.9%;
+    --radius: 1rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer components {
+  .hero-section {
+    @apply relative min-h-[80vh] flex items-center justify-center overflow-hidden;
+    background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%);
+  }
+  
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+  }
+  
+  .nav-link {
+    @apply text-sm font-medium text-muted-foreground hover:text-primary transition-colors relative after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-primary after:scale-x-0 after:origin-right after:transition-transform hover:after:scale-x-100 hover:after:origin-left;
+  }
+  
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-full px-6 py-2 text-sm font-medium transition-all
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none
+           bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 hover:scale-105 shadow-md;
+  }
+  
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-full px-6 py-2 text-sm font-medium transition-all
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none
+           border border-input bg-background hover:bg-accent hover:text-accent-foreground disabled:opacity-50 hover:scale-105;
+  }
+
+  .gradient-card {
+    @apply rounded-xl shadow-lg overflow-hidden relative;
+    background: linear-gradient(225deg, #FFE29F 0%, #FFA99F 48%, #FF719A 100%);
+  }
+
+  .glass-effect {
+    @apply backdrop-blur-md bg-white/30 rounded-xl border border-white/20;
+  }
+
+  .scroll-animate {
+    @apply transition-all duration-700 ease-out;
+    transform: translateY(20px);
+  }
+
+  .scroll-animate.animate-fadeIn {
+    transform: translateY(0);
+  }
+}
