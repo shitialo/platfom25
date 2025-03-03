@@ -96,7 +96,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
                         className="rounded-full w-12 h-12 bg-purple-100 hover:bg-purple-200 transition-colors"
                       >
                         <Avatar className="w-10 h-10">
-                          <AvatarImage src={user.image || "/images/sarah.jpg"} />
+                          <AvatarImage src={user.picture || "/images/default-avatar.png"} />
                           <AvatarFallback className="bg-purple-500 text-white text-lg">
                             {user.name?.charAt(0)}
                           </AvatarFallback>
@@ -163,7 +163,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
                 <>
                   <div className="px-4 py-2 flex items-center gap-3">
                     <Avatar className="w-10 h-10">
-                      <AvatarImage src={user.image || "/images/sarah.jpg"} />
+                      <AvatarImage src={user.picture || "/images/default-avatar.png"} />
                       <AvatarFallback className="bg-purple-500 text-white text-lg">
                         {user.name?.charAt(0)}
                       </AvatarFallback>

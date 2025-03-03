@@ -8,6 +8,10 @@ from utils import token_required
 from config import config
 import uuid
 import requests
+import secrets
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
@@ -250,3 +254,144 @@ def verify_google_token():
             cur.close()
         if 'conn' in locals():
             conn.close()
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.get_json()
+    
+    if not data or 'email' not in data:
+        return jsonify({'message': 'Email is required'}), 400
+    
+    email = data['email']
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Check if user exists
+        cursor.execute('SELECT id, email, name FROM users WHERE email = %s', (email,))
+        user = cursor.fetchone()
+        
+        if not user:
+            # For security reasons, don't reveal that the email doesn't exist
+            return jsonify({'message': 'If your email is registered, you will receive a password reset link'}), 200
+        
+        # Generate a reset token
+        reset_token = secrets.token_urlsafe(32)
+        expiration = datetime.now(timezone.utc) + timedelta(hours=1)
+        
+        # Store the reset token in the database
+        cursor.execute('''
+            INSERT INTO password_reset_tokens (user_id, token, expires_at)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE token = VALUES(token), expires_at = VALUES(expires_at)
+        ''', (user['id'], reset_token, expiration))
+        
+        conn.commit()
+        
+        # Create the reset link
+        reset_link = f"{config.FRONTEND_URL}/reset-password?token={reset_token}"
+        
+        # Send email with reset link
+        send_password_reset_email(user['email'], user['name'], reset_link)
+        
+        return jsonify({'message': 'If your email is registered, you will receive a password reset link'}), 200
+    
+    except Exception as e:
+        print("Error during password reset request:", str(e))
+        return jsonify({
+            'message': 'Failed to process password reset request',
+            'error': str(e)
+        }), 500
+    
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+@auth_bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json()
+    
+    if not data or 'token' not in data or 'new_password' not in data:
+        return jsonify({'message': 'Token and new password are required'}), 400
+    
+    token = data['token']
+    new_password = data['new_password']
+    
+    if len(new_password) < 6:
+        return jsonify({'message': 'Password must be at least 6 characters long'}), 400
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Find the token and check if it's valid
+        cursor.execute('''
+            SELECT user_id, expires_at FROM password_reset_tokens 
+            WHERE token = %s AND expires_at > %s
+        ''', (token, datetime.now(timezone.utc)))
+        
+        token_data = cursor.fetchone()
+        
+        if not token_data:
+            return jsonify({'message': 'Invalid or expired token'}), 400
+        
+        # Update the user's password
+        hashed_password = generate_password_hash(new_password, method='sha256')
+        cursor.execute('UPDATE users SET password = %s WHERE id = %s', 
+                      (hashed_password, token_data['user_id']))
+        
+        # Delete the used token
+        cursor.execute('DELETE FROM password_reset_tokens WHERE token = %s', (token,))
+        
+        conn.commit()
+        
+        return jsonify({'message': 'Password has been reset successfully'}), 200
+    
+    except Exception as e:
+        print("Error during password reset:", str(e))
+        return jsonify({
+            'message': 'Failed to reset password',
+            'error': str(e)
+        }), 500
+    
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+def send_password_reset_email(email, name, reset_link):
+    """Send password reset email to the user"""
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = config.EMAIL_SENDER
+        msg['To'] = email
+        msg['Subject'] = "Password Reset Request"
+        
+        body = f"""
+        <html>
+        <body>
+            <h2>Hello {name},</h2>
+            <p>We received a request to reset your password. If you didn't make this request, you can ignore this email.</p>
+            <p>To reset your password, please click on the link below:</p>
+            <p><a href="{reset_link}">Reset Password</a></p>
+            <p>This link will expire in 1 hour.</p>
+            <p>Thank you,<br>The Platform25 Team</p>
+        </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(body, 'html'))
+        
+        server = smtplib.SMTP(config.SMTP_SERVER, config.SMTP_PORT)
+        server.starttls()
+        server.login(config.EMAIL_USERNAME, config.EMAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        
+        print(f"Password reset email sent to {email}")
+    except Exception as e:
+        print(f"Failed to send password reset email: {str(e)}")

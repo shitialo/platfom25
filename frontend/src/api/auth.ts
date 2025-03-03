@@ -19,4 +19,13 @@ export interface LoginCredentials {
 
 export interface RegisterData extends LoginCredentials {
   name: string;
+}
+
+export interface ForgotPasswordData {
+  email: string;
+}
+
+export interface ResetPasswordData {
+  token: string;
+  new_password: string;
 } 

@@ -7,6 +7,7 @@ from host import host_bp
 from listing import listing_bp
 from admin import admin_bp
 from chat import chat_bp
+from user import user_bp
 from utils import CustomJSONEncoder
 import os
 
@@ -31,12 +32,16 @@ else:
 # Create uploads directory if it doesn't exist
 os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
 
+# Create profile images directory if it doesn't exist
+os.makedirs(os.path.join(config.UPLOAD_FOLDER, 'profile_images'), exist_ok=True)
+
 # Register blueprints
 app.register_blueprint(auth_bp)
 app.register_blueprint(host_bp)
 app.register_blueprint(listing_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(chat_bp)
+app.register_blueprint(user_bp)
 
 @app.route('/api/test-amenities', methods=['GET'])
 def test_amenities_route():

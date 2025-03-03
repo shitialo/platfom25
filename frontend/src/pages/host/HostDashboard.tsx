@@ -107,29 +107,28 @@ const HostDashboard = () => {
           <div className="space-x-4">
             <Button 
               variant="outline" 
-              onClick={() => navigate('/host/messages')}
-              className="flex items-center gap-2"
-            >
-              <MessageCircle className="w-4 h-4" />
-              Messages
-            </Button>
-            <Button 
-              variant="outline" 
               onClick={() => navigate('/')}
               className="flex items-center gap-2"
             >
               <Home className="w-4 h-4" />
               Back to Home
             </Button>
-            <Button 
-              onClick={() => navigate('/host/food')}
-              className="flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              New Experience
-            </Button>
           </div>
         </div>
+      </div>
+
+      {/* Floating Messages Button */}
+      <div className="fixed bottom-8 right-8 z-50">
+        <Button 
+          onClick={() => navigate('/host/messages')}
+          className="rounded-full w-16 h-16 shadow-lg bg-primary hover:bg-primary/90 transition-all duration-300 flex flex-col items-center justify-center group"
+        >
+          <div className="relative">
+            <MessageCircle className="w-6 h-6 text-white" />
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">3</span>
+          </div>
+          <span className="text-xs text-white mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Messages</span>
+        </Button>
       </div>
 
       {/* Stats Overview */}

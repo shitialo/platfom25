@@ -11,6 +11,8 @@ import HostStay from "@/pages/host/HostStay";
 import HostMessages from "@/pages/host/HostMessages";
 import Login from "@/pages/auth/Login";
 import Signup from "@/pages/auth/Signup";
+import ForgotPassword from "@/pages/auth/ForgotPassword";
+import ResetPassword from "@/pages/auth/ResetPassword";
 import Terms from "@/pages/Terms";
 import Privacy from "@/pages/Privacy";
 import Help from "@/pages/Help";
@@ -57,6 +59,8 @@ const App = () => {
               <Route path="/become-host" element={<BecomeHost />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/help" element={<Help />} />

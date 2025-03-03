@@ -700,9 +700,7 @@ const Stays = () => {
                             <span className="font-medium">{stay.host.rating}</span>
                           </div>
                         </div>
-                        <CardDescription className="line-clamp-2 mt-1">
-                          {stay.description}
-                        </CardDescription>
+                      
                       </CardHeader>
                       <CardContent>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -718,12 +716,11 @@ const Stays = () => {
                         <div className="mt-4">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <img
-                                src={getFullImageUrl(stay.host.image)}
-                                alt={stay.host.name}
-                                className="w-8 h-8 rounded-full object-cover"
-                              />
-                              <span className="text-sm">{stay.host.name}</span>
+                              
+                              <div>
+                                <span className="text-xs text-muted-foreground">Hosted by </span>
+                                <span className="text-sm font-medium leading-tight">{stay.host.name}</span>
+                              </div>
                             </div>
                             <span className="text-lg font-semibold text-primary">
                               ${stay.price_per_night}

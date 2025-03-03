@@ -74,7 +74,7 @@ const Signup = () => {
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <Link to="/" className="flex items-center justify-center mb-8">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-terracotta-600 flex items-center justify-center text-white font-bold text-xl">
-              25
+              P25
 
             </div>
           </Link>

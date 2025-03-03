@@ -11,7 +11,63 @@ CREATE TABLE IF NOT EXISTS users (
     created_at DATETIME NOT NULL,
     is_host BOOLEAN DEFAULT FALSE,
     image VARCHAR(255) DEFAULT NULL,
+    phone VARCHAR(20) DEFAULT NULL,
+    language VARCHAR(50) DEFAULT 'English',
+    currency VARCHAR(10) DEFAULT 'USD',
+    timezone VARCHAR(50) DEFAULT 'UTC-5',
+    bio TEXT DEFAULT NULL,
     INDEX email_idx (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- User Settings
+CREATE TABLE IF NOT EXISTS user_settings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    email_notifications BOOLEAN DEFAULT FALSE,
+    marketing_communications BOOLEAN DEFAULT FALSE,
+    two_factor_enabled BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY user_settings_idx (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Connected Social Accounts
+CREATE TABLE IF NOT EXISTS connected_accounts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    provider ENUM('google', 'facebook') NOT NULL,
+    provider_user_id VARCHAR(255) DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY user_provider_idx (user_id, provider)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- User Favorites
+CREATE TABLE IF NOT EXISTS favorites (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    listing_id INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY user_listing_idx (user_id, listing_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Bookings
+CREATE TABLE IF NOT EXISTS bookings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    listing_id INT NOT NULL,
+    booking_date DATE NOT NULL,
+    guests INT NOT NULL DEFAULT 1,
+    total_price DECIMAL(10, 2) NOT NULL,
+    status ENUM('pending', 'confirmed', 'completed', 'cancelled') DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX user_idx (user_id),
+    INDEX listing_idx (listing_id),
+    INDEX status_idx (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Amenities Master Table
@@ -48,9 +104,7 @@ CREATE TABLE IF NOT EXISTS food_experiences (
     FOREIGN KEY (host_id) REFERENCES users(id),
     INDEX host_idx (host_id),
     INDEX status_idx (status),
-    INDEX location_idx (latitude, longitude),
-    INDEX zipcode_idx (zipcode),
-    INDEX featured_idx (is_featured)
+    INDEX location_idx (city, state)
 );
 
 CREATE TABLE IF NOT EXISTS food_experience_images (
@@ -88,6 +142,8 @@ CREATE TABLE IF NOT EXISTS stays (
     is_featured BOOLEAN DEFAULT FALSE,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
+    property_type VARCHAR(50) NOT NULL DEFAULT '', 
+    beds INT NOT NULL DEFAULT 0, 
     status ENUM('draft', 'published', 'archived') DEFAULT 'draft',
     address VARCHAR(255) NOT NULL DEFAULT '',
     zipcode VARCHAR(10) NOT NULL DEFAULT '',
@@ -152,6 +208,17 @@ CREATE TABLE IF NOT EXISTS reviews (
     INDEX idx_experience_reviews (experience_id),
     INDEX idx_stay_reviews (stay_id)
 );
+
+-- Password Reset Tokens
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token VARCHAR(255) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY token_idx (token)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Default Amenities Data
 INSERT INTO amenities (name, category, type) VALUES

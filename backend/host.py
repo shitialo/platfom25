@@ -392,6 +392,67 @@ def reorder_food_experience_images(current_user, id):
         if 'conn' in locals():
             conn.close()
 
+@host_bp.route('/food-experiences/<int:id>', methods=['GET'])
+@token_required
+def get_host_food_experience(current_user, id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Check if the food experience exists and belongs to the current user
+        query = """
+            SELECT
+                fe.*,
+                GROUP_CONCAT(DISTINCT fei.image_path) as image_paths
+            FROM food_experiences fe
+            LEFT JOIN food_experience_images fei ON fe.id = fei.experience_id
+            WHERE fe.id = %s AND fe.host_id = %s
+            GROUP BY fe.id
+        """
+        
+        cursor.execute(query, (id, current_user['id']))
+        experience = cursor.fetchone()
+        
+        if not experience:
+            return jsonify({'message': 'Food experience not found or unauthorized'}), 404
+            
+        # Format the response
+        images = []
+        if experience['image_paths']:
+            for img_path in experience['image_paths'].split(','):
+                if img_path:
+                    images.append({'url': get_full_url(f"/uploads/{img_path}")})
+        
+        response = {
+            'id': experience['id'],
+            'title': experience['title'],
+            'description': experience['description'],
+            'menu_description': experience['menu_description'],
+            'location_name': experience['location_name'],
+            'price_per_person': float(experience['price_per_person']),
+            'cuisine_type': experience['cuisine_type'],
+            'status': experience['status'],
+            'address': experience['address'],
+            'zipcode': experience['zipcode'],
+            'city': experience['city'],
+            'state': experience['state'],
+            'latitude': float(experience['latitude']),
+            'longitude': float(experience['longitude']),
+            'images': images
+        }
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        print("Error fetching food experience:", str(e))
+        return jsonify({'message': 'Failed to fetch food experience', 'error': str(e)}), 500
+        
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
 # Stay endpoints
 @host_bp.route('/stays', methods=['POST'])
 @token_required
@@ -763,6 +824,99 @@ def update_stay(current_user, id):
         if 'conn' in locals():
             conn.close()
 
+@host_bp.route('/stays/<int:id>', methods=['GET'])
+@token_required
+def get_host_stay(current_user, id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Check if the stay exists and belongs to the current user
+        query = """
+            SELECT 
+                s.*,
+                GROUP_CONCAT(DISTINCT CONCAT(si.image_path, ':', si.display_order)) as image_data,
+                GROUP_CONCAT(DISTINCT sa.amenity_id) as amenities,
+                GROUP_CONCAT(DISTINCT CONCAT(sa2.date, ' ', COALESCE(sa2.price_override, s.price_per_night), ' ', sa2.is_available)) as availability_data
+            FROM stays s
+            LEFT JOIN stay_images si ON s.id = si.stay_id
+            LEFT JOIN stay_amenities sa ON s.id = sa.stay_id
+            LEFT JOIN stay_availability sa2 ON s.id = sa2.stay_id
+            WHERE s.id = %s AND s.host_id = %s
+            GROUP BY s.id
+        """
+        
+        cursor.execute(query, (id, current_user['id']))
+        stay = cursor.fetchone()
+        
+        if not stay:
+            return jsonify({'message': 'Stay not found or unauthorized'}), 404
+            
+        # Format the response
+        images = []
+        if stay['image_data']:
+            for img_data in stay['image_data'].split(','):
+                parts = img_data.split(':')
+                if len(parts) >= 1:
+                    path = parts[0]
+                    order = int(parts[1]) if len(parts) > 1 else 0
+                    images.append({
+                        'url': get_full_url(f"/uploads/{path}"),
+                        'order': order
+                    })
+        
+        amenities = []
+        if stay['amenities']:
+            amenities = stay['amenities'].split(',')
+            
+        availability = []
+        if stay['availability_data']:
+            for avail_data in stay['availability_data'].split(','):
+                parts = avail_data.split(' ')
+                if len(parts) >= 3:
+                    availability.append({
+                        'date': parts[0],
+                        'price': float(parts[1]),
+                        'is_available': bool(int(parts[2]))
+                    })
+        
+        response = {
+            'id': stay['id'],
+            'title': stay['title'],
+            'description': stay['description'],
+            'location_name': stay['location_name'],
+            'price_per_night': float(stay['price_per_night']),
+            'max_guests': int(stay['max_guests']),
+            'bedrooms': int(stay['bedrooms']),
+            'bathrooms': int(stay['bathrooms']),
+            'beds': int(stay['beds']),
+            'property_type': stay['property_type'],
+            'status': stay['status'],
+            'address': stay['address'],
+            'zipcode': stay['zipcode'],
+            'city': stay['city'],
+            'state': stay['state'],
+            'latitude': float(stay['latitude']),
+            'longitude': float(stay['longitude']),
+            'images': images,
+            'amenities': amenities,
+            'availability': availability,
+            'created_at': stay['created_at'].isoformat(),
+            'updated_at': stay['updated_at'].isoformat()
+        }
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        print("Error fetching stay:", str(e))
+        return jsonify({'message': 'Failed to fetch stay', 'error': str(e)}), 500
+        
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
 @host_bp.route('/amenities', methods=['GET'])
 def get_amenities():
     try:
@@ -806,6 +960,7 @@ def get_amenities():
             cursor.close()
         if 'conn' in locals():
             conn.close()
+
 @host_bp.route('/stays/<int:id>/availability', methods=['POST'])
 @token_required
 def update_stay_availability(current_user, id):
